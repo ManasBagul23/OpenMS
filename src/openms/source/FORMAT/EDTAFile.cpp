@@ -278,11 +278,24 @@ namespace OpenMS
 
     TextFile tf;
 
-    // search for maximum number of sub-features (since this determines the number of columns)
+    // load() assigns the j-th sub-feature column group to map index j-1, so a
+    // sub-feature has to be written into the column group of its own map index
+    // (gaps filled with NA) -- not just packed in order -- or it comes back
+    // attributed to a different map. The number of column groups is therefore
+    // determined by the highest map index (plus any extra handles sharing one).
+    auto column_groups = [](const ConsensusFeature::HandleSetType& handles)
+    {
+      Size next = 0;
+      for (const FeatureHandle& h : handles)
+      {
+        next = std::max(next, Size(h.getMapIndex())) + 1;
+      }
+      return next;
+    };
     Size max_sub(0);
     for (Size i = 0; i < map.size(); ++i)
     {
-      max_sub = std::max(max_sub, map[i].getFeatures().size());
+      max_sub = std::max(max_sub, column_groups(map[i].getFeatures()));
     }
 
     // write header
@@ -300,12 +313,19 @@ namespace OpenMS
       std::string entry =StringUtils::toStr(f.getRT()) + "\t" + f.getMZ() + "\t" + f.getIntensity() + "\t" + f.getCharge();
       // sub-features
       const ConsensusFeature::HandleSetType& handle = f.getFeatures();
+      Size next = 0; // next column group to be written
       for (ConsensusFeature::HandleSetType::const_iterator it = handle.begin(); it != handle.end(); ++it)
       {
+        // handles are sorted by map index; fill the groups of maps without a sub-feature
+        for (; next < Size(it->getMapIndex()); ++next)
+        {
+          entry += "\tNA\tNA\tNA\tNA";
+        }
         entry +=std::string("\t") + it->getRT() + "\t" + it->getMZ() + "\t" + it->getIntensity() + "\t" + it->getCharge();
+        ++next;
       }
       // missing sub-features
-      for (Size j = handle.size(); j < max_sub; ++j)
+      for (; next < max_sub; ++next)
       {
         entry += "\tNA\tNA\tNA\tNA";
       }

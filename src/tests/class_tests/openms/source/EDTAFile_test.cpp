@@ -96,6 +96,27 @@ START_SECTION((void store(const std::string& filename, const ConsensusMap& map) 
     // cannot test for metavalues, since they are not written to EDTA (yet)
   }
 
+  // a sub-feature keeps its map index, even if the maps before it have none
+  ConsensusMap gap;
+  ConsensusFeature cf;
+  cf.setRT(100.0);
+  cf.setMZ(500.0);
+  cf.setIntensity(1000.0f);
+  Feature sub;
+  sub.setRT(101.0);
+  sub.setMZ(500.5);
+  sub.setIntensity(400.0f);
+  sub.setUniqueId(1);
+  cf.insert(1, sub); // map 1 only, nothing from map 0
+  gap.push_back(cf);
+  std::string gap_file;
+  NEW_TMP_FILE(gap_file)
+  f.store(gap_file, gap);
+  ConsensusMap gap2;
+  f.load(gap_file, gap2);
+  ABORT_IF(gap2.size() != 1 || gap2[0].getFeatures().size() != 1)
+  TEST_EQUAL(gap2[0].getFeatures().begin()->getMapIndex(), 1)
+  TEST_REAL_SIMILAR(gap2[0].getFeatures().begin()->getRT(), 101.0)
 }
 END_SECTION
 
