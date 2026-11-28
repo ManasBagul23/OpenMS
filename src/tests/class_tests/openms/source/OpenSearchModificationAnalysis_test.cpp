@@ -195,6 +195,18 @@ START_SECTION(mapDeltaMassesToModifications)
     TEST_REAL_SIMILAR(summaries[0].masses[0], oxidation_mass)
   }
 
+  // Two distinct search modifications at the exact same mass (not just close within tolerance) must both be
+  // named, not silently reduced to whichever was built into the lookup table last: Phospho (Unimod, record_id
+  // 21, full name "Phosphorylation") and the custom "PhosphoDecoy" entry (custom_mods.xml, full name
+  // "Phosphorylation Decoy") are both exactly 79.966331 Da
+  {
+    PeptideIdentificationList ids;
+    const auto summaries = map_clusters({79.966331}, ids);
+    TEST_EQUAL(summaries.size(), 1)
+    TEST_EQUAL(summaries[0].name == "Phosphorylation//Phosphorylation Decoy" ||
+               summaries[0].name == "Phosphorylation Decoy//Phosphorylation", true)
+  }
+
   // The same holds when the nearest entry is the lowest one, with a higher one in the window (this was "A//B" before)
   {
     PeptideIdentificationList ids;

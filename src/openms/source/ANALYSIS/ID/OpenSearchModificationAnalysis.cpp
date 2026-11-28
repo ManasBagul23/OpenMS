@@ -169,17 +169,40 @@ namespace OpenMS
     std::vector<std::string> modification_names;
     const ModificationsDB* mod_db = ModificationsDB::getInstance();
     mod_db->getAllSearchModifications(modification_names);
-    
+
+    // Several entries in modification_names can be the same modification under different
+    // specificities (e.g. one per residue site), repeating the same full name and mass; collect
+    // the distinct names per mass first, so a repeat does not look like a second, different
+    // modification at that mass.
+    std::map<double, std::vector<std::string>, FuzzyDoubleComparator> mass_to_names(FuzzyDoubleComparator(1e-9));
     for (const std::string& mod_name : modification_names)
     {
       const ResidueModification* residue = mod_db->getModification(mod_name);
       std::string full_name = residue->getFullName();
       double diff_mono_mass = residue->getDiffMonoMass();
-      
+
       if (!full_name.contains("substitution"))
       {
-        mass_to_modification[diff_mono_mass] = full_name;
+        std::vector<std::string>& names = mass_to_names[diff_mono_mass];
+        if (std::find(names.begin(), names.end(), full_name) == names.end())
+        {
+          names.push_back(full_name);
+        }
       }
+    }
+    // Two distinct modifications at (effectively) the same mass, e.g. Phospho and the custom
+    // PhosphoDecoy entry (both 79.966331 Da), must both be named instead of one silently
+    // overwriting the other: join them with "//", the same convention joinedNames_() already
+    // uses below for distinct masses that are equally close to a cluster.
+    for (const auto& [mass, names] : mass_to_names)
+    {
+      std::string joined;
+      for (const std::string& name : names)
+      {
+        if (!joined.empty()) joined += "//";
+        joined += name;
+      }
+      mass_to_modification[mass] = joined;
     }
 
     // Names of the single modifications, in the order in which they are combined below
